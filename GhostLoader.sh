@@ -18,6 +18,7 @@ PROFILES_DIR="/home/ark/.emulationstation/theme_profiles"
 ES_SETTINGS="/home/ark/.emulationstation/es_settings.cfg"
 STATE_FILE="/tmp/ghostloader_last_theme"
 LOG_FILE="/tmp/ghostloader.log"
+SAVE_DIR="/roms/tools/savestheme"
 BACKTITLE_TEXT="GhostLoader - Theme Settings Guardian by Jason"
 
 # --- Sortie Propre ---
@@ -275,6 +276,52 @@ manage_profiles() {
     done
 }
 
+# --- Fonction pour sauvegarder les profils ---
+backup_profiles_to_zip() {
+    /bin/mkdir -p "$SAVE_DIR"
+
+    # Vérifier si le dossier des profils contient des fichiers
+    if [ ! -d "$PROFILES_DIR" ] || [ -z "$(ls -A "$PROFILES_DIR" 2>/dev/null)" ]; then
+        dialog --backtitle "$BACKTITLE_TEXT" --title "Error" --msgbox "\nNo profiles found to backup in:\n$PROFILES_DIR" 8 60 >"$CURR_TTY"
+        return
+    fi
+
+    dialog --backtitle "$BACKTITLE_TEXT" --title "Backup" --infobox "\nCompressing all profiles to ZIP..." 5 45 >"$CURR_TTY"
+    
+    # Créer le zip 
+    if zip -jq "$SAVE_DIR/profiles_backup.zip" "$PROFILES_DIR"/*; then
+        sleep 1
+        dialog --backtitle "$BACKTITLE_TEXT" --title "Success" --msgbox "\nProfiles successfully saved to:\n$SAVE_DIR/profiles_backup.zip" 8 65 >"$CURR_TTY"
+    else
+        dialog --backtitle "$BACKTITLE_TEXT" --title "Error" --msgbox "\nFailed to create ZIP backup." 7 40 >"$CURR_TTY"
+    fi
+}
+
+# --- Fonction pour restaurer les profils ---
+restore_profiles_from_zip() {
+    local ZIP_FILE="$SAVE_DIR/profiles_backup.zip"
+
+    # Vérifier si le fichier ZIP existe
+    if [ ! -f "$ZIP_FILE" ]; then
+        dialog --backtitle "$BACKTITLE_TEXT" --title "Error" --msgbox "\nBackup file not found:\n$ZIP_FILE" 8 60 >"$CURR_TTY"
+        return
+    fi
+
+    # Demander confirmation avant d'écraser les profils actuels
+    if dialog --backtitle "$BACKTITLE_TEXT" --title "Confirm Restore" --yesno "\nDo you want to restore all profiles ?\n\nWarning: This will overwrite existing profiles." 10 60 >"$CURR_TTY"; then
+        /bin/mkdir -p "$PROFILES_DIR"
+        dialog --backtitle "$BACKTITLE_TEXT" --title "Restore" --infobox "\nExtracting profiles..." 5 35 >"$CURR_TTY"
+        
+        if unzip -oq "$ZIP_FILE" -d "$PROFILES_DIR"; then
+            /bin/chown -R ark:ark "$PROFILES_DIR"
+            sleep 1
+            dialog --backtitle "$BACKTITLE_TEXT" --title "Success" --msgbox "\nProfiles restored successfully." 7 40 >"$CURR_TTY"
+        else
+            dialog --backtitle "$BACKTITLE_TEXT" --title "Error" --msgbox "\nAn error occurred during extraction." 7 45 >"$CURR_TTY"
+        fi
+    fi
+}
+
 # --- Menu Principal ---
 MainMenu() {
     while true; do
@@ -292,16 +339,20 @@ MainMenu() {
             1 "Activate GhostLoader Service" \
             2 "Deactivate GhostLoader Service" \
             3 "Manage Saved Profiles" \
-            4 "Uninstall GhostLoader Completely" \
-            5 "Exit" \
+            4 "Backup all Profiles" \
+            5 "Restore all Profiles" \
+            6 "Uninstall GhostLoader Completely" \
+            7 "Exit" \
         2>"$CURR_TTY")
         
         case "$CHOICE" in
             1) activate_service ;;
             2) deactivate_service ;;
             3) manage_profiles ;;
-            4) uninstall_engine ;;
-            5) ExitMenu ;;
+            4) backup_profiles_to_zip ;;
+            5) restore_profiles_from_zip ;;
+            6) uninstall_engine ;;
+            7) ExitMenu ;;
             *) ExitMenu ;;
         esac
     done
